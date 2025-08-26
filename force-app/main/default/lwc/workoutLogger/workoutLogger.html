@@ -1,0 +1,247 @@
+<template>
+    <lightning-card icon-name="standard:calibration">
+        <h1 slot="title" class="card-title slds-text-heading_small slds-p-horizontal_small">
+            Workout Logger
+        </h1>
+        
+        <div class="slds-p-around_medium">
+            <!-- Loading State -->
+            <template if:true={isLoading}>
+                <div class="loading-container">
+                    <lightning-spinner alternative-text="Loading..." size="small"></lightning-spinner>
+                    <p class="slds-text-color_weak slds-m-top_small">Loading your workout data...</p>
+                </div>
+            </template>
+
+            <!-- Session Management -->
+            <template if:false={isLoading}>
+                <template if:true={sessionExists}>
+                    <div class="session-header">
+                        <lightning-icon icon-name="utility:date_time" size="small" class="slds-m-right_x-small"></lightning-icon>
+                        <span>Logging sets for <strong>{sessionDate}</strong></span>
+                        <lightning-button-icon 
+                            icon-name="utility:refresh" 
+                            variant="border-filled" 
+                            size="small"
+                            onclick={handleRefreshTable}
+                            title="Refresh"
+                            class="slds-m-left_small">
+                        </lightning-button-icon>
+                    </div>
+                </template>
+                
+                <template if:false={sessionExists}>
+                    <div class="welcome-state">
+                        <lightning-icon icon-name="utility:add" size="large" class="slds-m-bottom_small"></lightning-icon>
+                        <h2 class="slds-text-heading_medium slds-m-bottom_x-small">Start Your Workout</h2>
+                        <p class="slds-text-color_weak slds-m-bottom_medium">Ready to track your progress? Begin a new session to start logging your sets.</p>
+                        <lightning-button 
+                            label="Start New Workout Session" 
+                            onclick={handleCreateSession} 
+                            variant="brand"
+                            class="mobile-full-width">
+                        </lightning-button>
+                    </div>
+                </template>
+
+                <!-- Workout Form -->
+                <template if:true={sessionExists}>
+                    <div class="session-form">
+                        <h3 class="form-title slds-text-heading_small slds-m-bottom_small">
+                            <lightning-icon icon-name="utility:add" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                            Add New Set
+                        </h3>
+                        
+                        <div class="slds-grid slds-wrap slds-gutters">
+                            <!-- Muscle Group & Exercise Selection -->
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                <lightning-combobox
+                                    name="muscleGroup"
+                                    label="Muscle Group"
+                                    value={selectedMuscleGroup}
+                                    options={muscleGroupOptions}
+                                    onchange={handleMuscleGroupChange}
+                                    placeholder="Select Muscle Group"
+                                    required>
+                                </lightning-combobox>
+
+                                <lightning-combobox
+                                    label="Exercise"
+                                    value={selectedExerciseId}
+                                    options={exerciseOptions}
+                                    onchange={handleExerciseChange}
+                                    placeholder="Select Exercise"
+                                    required
+                                    class="slds-m-top_small">
+                                </lightning-combobox>
+                            </div>
+
+                            <!-- Reps & Weight -->
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input 
+                                    type="number" 
+                                    label="Reps" 
+                                    value={reps} 
+                                    onchange={handleRepsChange} 
+                                    min="1"
+                                    max="100"
+                                    required
+                                    message-when-range-underflow="Enter at least 1 rep"
+                                    message-when-range-overflow="Maximum 100 reps">
+                                </lightning-input>
+                            </div>
+
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input 
+                                    type="number" 
+                                    label="Weight" 
+                                    value={weight} 
+                                    onchange={handleWeightChange} 
+                                    min="0"
+                                    step="0.5"
+                                    required
+                                    message-when-range-underflow="Weight cannot be negative">
+                                </lightning-input>
+                            </div>
+
+                            <!-- Unit & RPE -->
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-combobox 
+                                    label="Unit" 
+                                    value={unit} 
+                                    options={unitOptions} 
+                                    onchange={handleUnitChange}>
+                                </lightning-combobox>
+                            </div>
+
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input
+                                    type="number"
+                                    label="RPE (1-10)"
+                                    value={rpe}
+                                    onchange={handleRpeChange}
+                                    min="1"
+                                    max="10"
+                                    placeholder="Optional"
+                                    class="rpe-input">
+                                </lightning-input>
+                            </div>
+
+                            <!-- Notes Field -->
+                            <div class="slds-col slds-size_1-of-1">
+                                <lightning-input
+                                    type="text"
+                                    label="Notes"
+                                    value={notes}
+                                    onchange={handleNotesChange}
+                                    placeholder="Any additional notes about this set"
+                                    maxlength="255"
+                                    class="notes-input">
+                                </lightning-input>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="button-group">
+                            <lightning-button 
+                                label="Add Set" 
+                                variant="brand" 
+                                onclick={handleAddSet}
+                                class="add-set-btn">
+                            </lightning-button>
+                            
+                            <lightning-button 
+                                label="Clear Form" 
+                                variant="neutral" 
+                                onclick={handleClearForm}
+                                class="clear-btn">
+                            </lightning-button>
+                        </div>
+                    </div>
+
+                    <!-- Workout Statistics -->
+                    <div class="stats-container" if:true={loggedSets.length}>
+                        <h3 class="slds-text-heading_small slds-m-bottom_small">Session Summary</h3>
+                        <div class="slds-grid slds-wrap slds-gutters">
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <div class="stat-card">
+                                    <span class="stat-number">{totalSets}</span>
+                                    <span class="stat-label">Total Sets</span>
+                                </div>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <div class="stat-card">
+                                    <span class="stat-number">{uniqueExercises}</span>
+                                    <span class="stat-label">Exercises</span>
+                                </div>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <div class="stat-card">
+                                    <span class="stat-number">{totalReps}</span>
+                                    <span class="stat-label">Total Reps</span>
+                                </div>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <div class="stat-card">
+                                    <span class="stat-number">{maxWeight}{unitAbbreviation}</span>
+                                    <span class="stat-label">Max Weight</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Table -->
+                    <div class="data-table-container">
+                        <template if:true={loggedSets.length}>
+                            <div class="table-header">
+                                <h3 class="slds-text-heading_small">Logged Sets</h3>
+                                <lightning-button-icon 
+                                    icon-name="utility:down" 
+                                    variant="border-filled" 
+                                    size="small"
+                                    onclick={toggleTableVisibility}
+                                    title={toggleTableTitle}
+                                    class="toggle-table-btn">
+                                </lightning-button-icon>
+                            </div>
+                            
+                            <template if:true={tableVisible}>
+                                <lightning-datatable 
+                                    key-field="Id" 
+                                    data={loggedSets} 
+                                    columns={columns} 
+                                    hide-checkbox-column
+                                    enable-infinite-loading
+                                    load-more-offset="20"
+                                    onloadmore={handleLoadMore}
+                                    sorted-by={sortedBy}
+                                    sorted-direction={sortedDirection}
+                                    onsorted={handleSortData}
+                                    class="workout-datatable">
+                                </lightning-datatable>
+                            </template>
+                        </template>
+                        
+                        <template if:false={loggedSets.length}>
+                            <div class="empty-state">
+                                <lightning-icon icon-name="utility:info" size="small" class="slds-m-bottom_x-small"></lightning-icon>
+                                <p>No sets logged for this session yet. Add your first set above!</p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- End Session -->
+                    <div class="end-session-section">
+                        <lightning-button 
+                            label="End Workout Session" 
+                            variant="destructive" 
+                            onclick={handleEndSession} 
+                            class="end-session-btn">
+                        </lightning-button>
+                        <p class="slds-text-color_weak slds-m-top_x-small">Ending the session will prevent adding more sets.</p>
+                    </div>
+                </template>
+            </template>
+        </div>
+    </lightning-card>
+</template>
